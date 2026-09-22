@@ -1,7 +1,8 @@
 # 🔒 SSL Checker
 
-Inspect the SSL/TLS details of any `host:port` — negotiated protocol, cipher
-suite, and a full breakdown of the certificate chain.
+Inspect the SSL/TLS details of any `host:port` — negotiated protocol and cipher
+suite, a full certificate-chain breakdown, and an SSL-Labs-style security scan
+(revocation, cipher enumeration, HSTS, CAA).
 
 Built with **Node.js** (Express backend + vanilla-JS web UI). The server makes
 the actual TLS connection, so it can check **any** host and port (unlike a
@@ -10,17 +11,40 @@ on 443).
 
 ## Features
 
-- Check any `host:port` (default port `443`)
+**Core check**
+
+- Check any `host:port` (default port `443`); IPv6 literals (`[::1]:443`),
+  pasted URLs, and `host:port` all in a single box
 - Negotiated **TLS version** and **cipher suite** (with key size)
-- Certificate details: subject / issuer, serial number, signature algorithm,
-  public key (algorithm + size/curve), SHA-256 fingerprint
+- **Verification status** against the system trust store — self-signed,
+  expired, or misconfigured certs still show their details with a warning
+- Summary header (host, resolved IP, test duration)
+
+**Certificate**
+
+- Subject / issuer (organisation + country), serial number, signature
+  algorithm, public key (algorithm + size/curve), SHA-256 fingerprint
 - **SANs** (Subject Alternative Names) — DNS + IP
-- Validity window with **days remaining** and status
-  (`valid` / `expiring_soon` / `expired` / `not_yet_valid`)
-- Full **certificate chain** with per-cert expiry
-- **Verification status** against the system trust store — self-signed /
-  expired / misconfigured certs still show their details (with a warning)
-- IPv6 literals (`[::1]:443`), pasted URLs, and `host:port` in a single box
+- **Name matches domain** (wildcard-aware) and **certificate type**
+  (DV/OV/EV × wildcard/multi-domain/single)
+- Validity window with **days remaining** and **total validity period**, plus
+  status (`valid` / `expiring_soon` / `expired` / `not_yet_valid`)
+- Full **certificate chain** (collapsible accordion) with per-cert expiry;
+  every cert has **view/copy PEM** and **download `.pem`**
+- **OCSP** and **CA Issuers** URLs
+
+**Advanced security scan**
+
+- **OCSP/CRL revocation status** (live query against the responder)
+- **Supported TLS versions** (1.0–1.3)
+- **DNS CAA** records
+- **Cipher suite enumeration** — probed individually, classified
+  secure / moderate / weak / insecure with a forward-secrecy flag
+- **HSTS** (HTTP Strict-Transport-Security) header
+
+**Anti-abuse**
+
+- Per-IP daily rate limit with a self-contained math CAPTCHA (single-use token)
 
 ## Quick start
 
@@ -78,6 +102,8 @@ Response (abridged):
 {
   "host": "example.com",
   "port": 443,
+  "checked_at": "2026-09-22T12:00:00Z",
+  "duration_ms": 412,
   "connected": true,
   "tls_negotiated": true,
   "tls_version": "TLSv1.3",
@@ -85,22 +111,41 @@ Response (abridged):
   "ip_address": "93.184.216.34",
   "verified": true,
   "verify_error": null,
+  "name_matches": true,
+  "revocation": { "status": "good", "detail": "" },
+  "supported_tls_versions": ["TLSv1.2", "TLSv1.3"],
+  "caa": { "found": true, "issue": ["letsencrypt.org"], "issuewild": [], "iodef": [] },
+  "cipher_suites": [
+    { "name": "ECDHE-RSA-AES256-GCM-SHA384", "strength": "secure", "pfs": true }
+  ],
+  "hsts": { "found": true, "value": "max-age=31536000; includeSubdomains" },
   "certificate": {
     "subject": { "CN": "www.example.org" },
-    "issuer": { "CN": "DigiCert Global G2 TLS RSA SHA256 2020 CA1" },
+    "issuer": { "CN": "DigiCert Global G2 TLS RSA SHA256 2020 CA1", "O": "DigiCert Inc", "C": "US" },
     "serial_number": "0FBF...",
     "signature_algorithm": "sha256WithRSAEncryption",
     "not_before": "2025-01-30T00:00:00Z",
     "not_after": "2026-03-01T23:59:59Z",
     "days_remaining": 123,
+    "validity_days_total": 90,
     "validity_status": "valid",
+    "cert_type": "Domain Validation (Multi-Domain)",
     "san": { "dns": ["www.example.org", "example.org"], "ip": [] },
+    "ocsp_url": "http://ocsp.digicert.com",
+    "ca_issuers_url": "http://cacerts.digicert.com/DigiCertGlobalG2.crt",
     "public_key": { "algorithm": "EC", "curve": "prime256v1", "bits": 256 },
-    "fingerprint_sha256": "ab12..."
+    "fingerprint_sha256": "ab12...",
+    "pem": "-----BEGIN CERTIFICATE-----\n..."
   },
   "certificates": [ "…leaf…", "…intermediate…", "…root…" ]
 }
 ```
+
+`revocation.status` is one of `good` / `revoked` / `unknown` / `error` (the
+last two when the responder is unreachable or the cert has no OCSP URL).
+`cipher_suites` entries carry `strength` (`secure`/`moderate`/`weak`/
+`insecure`) and `pfs` (forward secrecy). Every certificate in `certificates`
+also has a `pem` field for view/download.
 
 ### `GET /api/health`
 
@@ -141,10 +186,10 @@ timezone (override with the `TZ` env var if needed).
 SSL-Checker/
 ├── app.js              # Express server entry point (Passenger startup file)
 ├── lib/
-│   ├── checker.js      # core TLS inspection logic (tls + crypto + node-forge)
+│   ├── checker.js      # core TLS inspection (tls + crypto + node-forge + ocsp)
 │   └── rate-limit.js   # per-IP rate limiter + math-CAPTCHA challenge
 ├── public/             # web UI (index.html, style.css, main.js)
-└── package.json
+└── package.json        # deps: express, node-forge, ocsp
 ```
 
 ## Notes
@@ -156,10 +201,14 @@ SSL-Checker/
   `node-forge`) because `getPeerCertificate()` does not expose it, and
   `forge.pki.certificateFromPem` throws on EC/EdDSA public keys.
 - Certificates expiring within **14 days** are flagged `expiring_soon`.
-- On a successful handshake three extra network probes run in parallel and are
-  appended to the report: **OCSP revocation status** (via the `ocsp` package),
-  **supported TLS versions** (1.0–1.3), and the **DNS CAA** record. Each one
-  degrades gracefully if the responder/resolver is unreachable.
-- An **advanced security scan** also enumerates which cipher suites the server
-  negotiates (probed individually, classified secure/moderate/weak/insecure
-  with a forward-secrecy flag) and checks the **HSTS** header.
+- On a successful handshake the advanced probes run in parallel and each one
+  degrades gracefully if its responder/resolver is unreachable:
+  - **OCSP revocation** — the request is built with the `ocsp` package (which
+    parses EC certs that node-forge can't) and the response's `certStatus` is
+    parsed directly, skipping the EC signature verification that `ocsp.verify`
+    fails on.
+  - **Supported TLS versions** and **cipher suites** — probed with per-cipher
+    `minVersion`/`maxVersion` pins; ciphers removed from modern OpenSSL
+    (RC4/DES) throw synchronously, so `tls.connect` is guarded.
+  - **DNS CAA** — resolved via `dns.resolve(…, 'CAA')`; a resolver that lacks
+    CAA support returns "no records" rather than failing the whole report.
