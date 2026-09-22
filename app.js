@@ -59,12 +59,13 @@ function normalizePort(raw) {
 
 // Passenger provides PORT and reverse-proxies to it. Bind all interfaces
 // (no host argument) — never bind to a machine hostname.
+//
+// NOTE: do NOT guard this with `if (require.main === module)`. Plesk's
+// Phusion Passenger loads the app via require(), so `require.main` is the
+// Passenger loader, not app.js — the guard would silently skip app.listen()
+// and every request would 500. Always listen unconditionally.
 const port = process.env.PORT || 3000;
 
-if (require.main === module) {
-  app.listen(port, () => {
-    console.log(`SSL-Checker listening on port ${port}`);
-  });
-}
-
-module.exports = app;
+app.listen(port, () => {
+  console.log(`SSL-Checker listening on port ${port}`);
+});
