@@ -1,5 +1,0 @@
-fastapi>=0.110
-uvicorn[standard]>=0.29
-cryptography>=42.0
-# WSGI bridge for Plesk/Phusion Passenger (not required for `uvicorn` dev).
-a2wsgi>=1.10

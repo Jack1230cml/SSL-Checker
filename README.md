@@ -3,17 +3,17 @@
 Inspect the SSL/TLS details of any `host:port` — negotiated protocol, cipher
 suite, and a full breakdown of the certificate chain.
 
-Built with **FastAPI** (backend) + a lightweight vanilla-JS web UI. The server
-makes the actual TLS connection, so it can check **any** host and port (unlike
-a pure browser-based tool, which is limited by CORS and can only fetch HTTPS
-URLs on 443).
+Built with **Node.js** (Express backend + vanilla-JS web UI). The server makes
+the actual TLS connection, so it can check **any** host and port (unlike a
+pure browser-based tool, which is limited by CORS and can only fetch HTTPS URLs
+on 443).
 
 ## Features
 
 - Check any `host:port` (default port `443`)
-- Negotiated **TLS version** and **cipher suite**
+- Negotiated **TLS version** and **cipher suite** (with key size)
 - Certificate details: subject / issuer, serial number, signature algorithm,
-  public key (algorithm + size), SHA-256 fingerprint
+  public key (algorithm + size/curve), SHA-256 fingerprint
 - **SANs** (Subject Alternative Names) — DNS + IP
 - Validity window with **days remaining** and status
   (`valid` / `expiring_soon` / `expired` / `not_yet_valid`)
@@ -25,54 +25,42 @@ URLs on 443).
 ## Quick start
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt
-
-# 2. Run the server
-uvicorn app.main:app --reload --port 8000
+npm install
+npm start          # or: node app.js
 ```
 
-Then open <http://localhost:8000> and enter a host.
+Then open <http://localhost:3000> and enter a host.
 
-## Deploying to Plesk
+## Deploying to Plesk (Node.js hosting)
 
-Plesk runs Python apps through **Phusion Passenger**, which is WSGI-only. The
-repo ships a `passenger_wsgi.py` entry point that bridges FastAPI (ASGI) to WSGI
-via `a2wsgi`, so Passenger can serve it directly.
+Plesk's **Node.js** hosting runs the app via Phusion Passenger, which executes
+the *Application Startup File* — for this repo that's **`app.js`**.
 
-1. In Plesk, create the (sub)domain and set its document root to a folder where
-   you'll place the app (e.g. `httpdocs/`).
-2. Upload/copy the repo contents **into the document root** — so the doc root
-   contains `app/`, `passenger_wsgi.py` and `requirements.txt`.
-3. Over SSH (as the domain user or root), install dependencies into a
-   **virtualenv inside the doc root** — Passenger's `passenger_wsgi.py` picks it
-   up automatically:
-   ```bash
-   cd /var/www/vhosts/<domain>/httpdocs
-   python3 -m venv venv
-   venv/bin/pip install -r requirements.txt
-   ```
-   (If `python3` isn't the system interpreter, use the Plesk-managed one, e.g.
-   `/opt/plesk/python/3.11/bin/python3`.)
-4. Make sure `passenger_wsgi.py` and `app/` are readable by the web-server user
-   (`psaserv` / `psacln` group). Plesk usually handles this automatically.
-5. In Plesk → **Websites & Domains → [domain] → Hosting Settings**, the app is
-   served automatically once `passenger_wsgi.py` is in the doc root. If it shows
-   a 503/"Web application could not be started", restart the domain's
-   PHP/FastCGI/Passenger app from the Plesk UI and check the error log at
-   `/var/www/vhosts/<domain>/logs/error_log`.
+1. In Plesk, create the (sub)domain with **Node.js** hosting type.
+2. Upload/copy the repo contents into the **Application Root** — so it contains
+   `app.js`, `lib/`, `public/` and `package.json`.
+3. In Plesk → **Websites & Domains → [domain] → Node.js**, set:
+   - **Document Root** → the app root (or a `public/` subdir)
+   - **Application Mode** → `production`
+   - **Application Startup File** → `app.js`
+4. Run **npm install** (Plesk's "Run npm install" button, or over SSH:
+   `cd /var/www/vhosts/<domain>/httpdocs && npm install`).
+5. Restart the app from the Plesk UI.
+
+The app reads the `PORT` env var Passenger provides and binds all interfaces
+(no host argument), so Passenger's reverse proxy can reach it.
 
 Verify from the server's own shell (must hit the same host the browser hits):
 
 ```bash
-curl -s https://<domain>/api/health          # -> {"status":"ok"}
-curl -s -X POST https://<domain>/api/check -H "Content-Type: application/json" \
-  -d '{"host":"google.com","port":443}'      # -> JSON report
+curl -s http://localhost:<port>/api/health           # -> {"status":"ok"}
+curl -s -X POST http://localhost:<port>/api/check -H "Content-Type: application/json" \
+  -d '{"host":"google.com","port":443}'              # -> JSON report
 ```
 
-> **Alternative (full ASGI / WebSocket):** run `uvicorn` as a systemd service
-> and reverse-proxy to it from Plesk's nginx (Domains → Apache & nginx Settings →
-> Additional nginx directives). More moving parts, but no WSGI bridge needed.
+> **`app.js` is both the server entry point AND the startup file.** The browser
+> UI JavaScript lives in `public/main.js` (not `app.js`) to avoid any clash with
+> the Passenger startup-file name.
 
 ## API
 
@@ -107,9 +95,8 @@ Response (abridged):
     "days_remaining": 123,
     "validity_status": "valid",
     "san": { "dns": ["www.example.org", "example.org"], "ip": [] },
-    "public_key": { "algorithm": "RSA", "bits": 2048 },
-    "fingerprint_sha256": "ab12...",
-    "version": "v3"
+    "public_key": { "algorithm": "EC", "curve": "prime256v1", "bits": 256 },
+    "fingerprint_sha256": "ab12..."
   },
   "certificates": [ "…leaf…", "…intermediate…", "…root…" ]
 }
@@ -125,20 +112,19 @@ Response (abridged):
 
 ```
 SSL-Checker/
-├── app/
-│   ├── __init__.py
-│   ├── checker.py      # core TLS inspection logic (ssl + cryptography)
-│   ├── main.py         # FastAPI app + /api/check endpoint
-│   └── static/         # web UI (index.html, style.css, app.js)
-├── requirements.txt
-└── README.md
+├── app.js              # Express server entry point (Passenger startup file)
+├── lib/
+│   └── checker.js      # core TLS inspection logic (tls + crypto + node-forge)
+├── public/             # web UI (index.html, style.css, main.js)
+└── package.json
 ```
 
 ## Notes
 
-- **Verification** uses the system trust store (`ssl.create_default_context()`).
-  On Linux this is usually `/etc/ssl/certs`; on Windows the OS certificate store.
-- The full chain is extracted on **Python 3.13+** (`get_verified_chain` /
-  `get_unverified_chain`); on older interpreters only the leaf certificate is
-  reported.
+- **Verification** uses Node's default trust store (`rejectUnauthorized: true`).
+- The full chain is walked from `getPeerCertificate(true)`; the loop guards
+  against self-signed roots whose `issuerCertificate` points back to themselves.
+- The signature algorithm is read straight off the certificate DER (via
+  `node-forge`) because `getPeerCertificate()` does not expose it, and
+  `forge.pki.certificateFromPem` throws on EC/EdDSA public keys.
 - Certificates expiring within **14 days** are flagged `expiring_soon`.

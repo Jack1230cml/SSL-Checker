@@ -1,13 +1,15 @@
-# Byte-compiled / cache
-__pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
+# Dependencies
+node_modules/
 
-# Virtual environments
-.venv/
-venv/
-env/
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
 
 # IDEs / editors
 .idea/
@@ -17,7 +19,3 @@ env/
 # OS
 .DS_Store
 Thumbs.db
-
-# Local env
-.env
-.env.*

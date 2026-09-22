@@ -1,0 +1,16 @@
+{
+  "name": "ssl-checker",
+  "version": "1.0.0",
+  "description": "Inspect the SSL/TLS details of any host:port",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "node-forge": "^1.3.1"
+  }
+}
