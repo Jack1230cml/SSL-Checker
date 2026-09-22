@@ -297,6 +297,32 @@ function renderDetails(cert, r) {
     </section>`;
 }
 
+function renderSecurity(r) {
+  const hsts = r.hsts;
+  const ciphers = r.cipher_suites || [];
+  const groups = { secure: [], moderate: [], weak: [], insecure: [] };
+  for (const c of ciphers) (groups[c.strength] = groups[c.strength] || []).push(c);
+  const pfsCount = ciphers.filter((c) => c.pfs).length;
+  const groupLabels = { secure: "secure", moderate: "moderate", weak: "weak", insecure: "insecure" };
+
+  const cipherRows = Object.entries(groups).map(([strength, list]) => {
+    const names = list.length
+      ? list.map((c) => `<span class="cipher-tag ${strength}">${esc(c.name)}</span>`).join("")
+      : '<span class="cipher-none">none</span>';
+    return `<div class="cipher-group"><span class="cipher-group-label ${strength}">${groupLabels[strength]} (${list.length})</span>${names}</div>`;
+  }).join("");
+
+  return `
+    <section class="card">
+      <div class="card-head"><span class="card-title">Security</span></div>
+      <div class="kv-grid">
+        <div class="kv"><div class="k">HSTS</div><div class="v">${hsts && hsts.found ? esc(hsts.value || "Yes") : "No"}</div></div>
+        <div class="kv"><div class="k">Forward Secrecy</div><div class="v">${pfsCount > 0 ? `Yes (${pfsCount} PFS cipher${pfsCount === 1 ? "" : "s"})` : "No"}</div></div>
+      </div>
+      <div class="cipher-block">${cipherRows}</div>
+    </section>`;
+}
+
 function render(r) {
   resultsEl.innerHTML = "";
 
@@ -328,10 +354,11 @@ function render(r) {
 
   const certCard = renderCertCard(cert);
   const detailsCard = renderDetails(cert, r);
+  const securityCard = renderSecurity(r);
   const validityCard = renderValidity(cert);
   const chainCard = r.certificates && r.certificates.length ? renderChain(r.certificates) : "";
 
-  resultsEl.innerHTML = renderSummary(r) + verdict + certCard + detailsCard + validityCard + chainCard;
+  resultsEl.innerHTML = renderSummary(r) + verdict + certCard + detailsCard + securityCard + validityCard + chainCard;
 }
 
 async function runCheck(token) {

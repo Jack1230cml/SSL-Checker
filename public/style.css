@@ -470,6 +470,33 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ---- cipher suites ---- */
+.cipher-block { margin-top: 16px; display: flex; flex-direction: column; gap: 12px; }
+.cipher-group { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; }
+.cipher-group-label {
+  font-size: 11px;
+  font-weight: 650;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-right: 2px;
+}
+.cipher-group-label.secure { color: var(--green); }
+.cipher-group-label.moderate { color: var(--amber); }
+.cipher-group-label.weak, .cipher-group-label.insecure { color: var(--red); }
+.cipher-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--bg-soft);
+  color: var(--text-muted);
+}
+.cipher-tag.secure { color: var(--green); border-color: rgba(74, 222, 128, 0.28); }
+.cipher-tag.moderate { color: var(--amber); border-color: rgba(251, 191, 36, 0.28); }
+.cipher-tag.weak, .cipher-tag.insecure { color: var(--red); border-color: rgba(248, 113, 113, 0.28); }
+.cipher-none { font-family: var(--mono); font-size: 11px; color: var(--text-faint); }
+
 /* ---- footer ---- */
 .foot {
   margin-top: auto;

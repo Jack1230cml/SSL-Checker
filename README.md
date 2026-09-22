@@ -160,3 +160,6 @@ SSL-Checker/
   appended to the report: **OCSP revocation status** (via the `ocsp` package),
   **supported TLS versions** (1.0–1.3), and the **DNS CAA** record. Each one
   degrades gracefully if the responder/resolver is unreachable.
+- An **advanced security scan** also enumerates which cipher suites the server
+  negotiates (probed individually, classified secure/moderate/weak/insecure
+  with a forward-secrecy flag) and checks the **HSTS** header.
