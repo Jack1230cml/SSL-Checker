@@ -240,6 +240,37 @@ async function copyPem(pem, btn) {
   setTimeout(() => { btn.textContent = old; }, 1500);
 }
 
+function renderSummary(r) {
+  const dur = r.duration_ms != null ? `${(r.duration_ms / 1000).toFixed(2)}s` : "";
+  const parts = [
+    `<span class="summary-host">${esc(r.host)}:${esc(r.port)}</span>`,
+    r.ip_address ? `<span class="summary-item">IP ${esc(r.ip_address)}</span>` : "",
+    dur ? `<span class="summary-item">${esc(dur)}</span>` : "",
+  ].filter(Boolean);
+  return `<div class="summary">${parts.join('<span class="summary-sep">·</span>')}</div>`;
+}
+
+function renderDetails(cert, r) {
+  const issuerFull = cert.issuer
+    ? [cert.issuer.O, cert.issuer.C].filter(Boolean).join(', ') || cert.issuer.CN || "—"
+    : "—";
+  const rows = [
+    ["Name Matches Domain", r.name_matches ? "Yes" : "No"],
+    ["Certificate Type", cert.cert_type || "—"],
+    ["Validity Period", cert.validity_days_total != null ? `${cert.validity_days_total} days` : "—"],
+    ["Issuer", issuerFull],
+    ["OCSP", cert.ocsp_url || "—"],
+    ["CA Issuers", cert.ca_issuers_url || "—"],
+  ];
+  return `
+    <section class="card">
+      <div class="card-head"><span class="card-title">Certificate details</span></div>
+      <div class="kv-grid">
+        ${rows.map(([k, v]) => `<div class="kv"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`).join("")}
+      </div>
+    </section>`;
+}
+
 function render(r) {
   resultsEl.innerHTML = "";
 
@@ -270,10 +301,11 @@ function render(r) {
   }
 
   const certCard = renderCertCard(cert);
+  const detailsCard = renderDetails(cert, r);
   const validityCard = renderValidity(cert);
   const chainCard = r.certificates && r.certificates.length ? renderChain(r.certificates) : "";
 
-  resultsEl.innerHTML = verdict + certCard + validityCard + chainCard;
+  resultsEl.innerHTML = renderSummary(r) + verdict + certCard + detailsCard + validityCard + chainCard;
 }
 
 async function runCheck(token) {
