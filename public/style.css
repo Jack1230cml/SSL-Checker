@@ -341,6 +341,31 @@ body {
   gap: 12px;
 }
 .chain-head-title { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.chain-head-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  flex: 1 1 auto;
+  font-family: inherit;
+  color: inherit;
+}
+.chain-chevron {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-size: 12px;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+.chain-head-main[aria-expanded="true"] .chain-chevron { transform: rotate(90deg); }
+.chain-head-main:hover .chain-cn { color: var(--accent); }
+.chain-details { margin-top: 13px; }
 .chain-role {
   font-size: 10.5px;
   font-weight: 650;

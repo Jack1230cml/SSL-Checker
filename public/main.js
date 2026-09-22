@@ -134,6 +134,18 @@ function chainRole(i, len) {
   return "Intermediate CA";
 }
 
+function toggleChain(idx, btn) {
+  const details = document.getElementById(`chain-details-${idx}`);
+  if (!details) return;
+  if (details.classList.contains("hidden")) {
+    details.classList.remove("hidden");
+    btn.setAttribute("aria-expanded", "true");
+  } else {
+    details.classList.add("hidden");
+    btn.setAttribute("aria-expanded", "false");
+  }
+}
+
 function renderChain(certs) {
   currentChain = certs;
   const items = certs.map((c, i) => {
@@ -148,23 +160,28 @@ function renderChain(certs) {
         <div class="chain-rail"><span class="chain-dot ${esc(c.validity_status)}"></span></div>
         <div class="chain-body chain-card">
           <div class="chain-head">
-            <div class="chain-head-title">
-              <span class="chain-role">${esc(role)}</span>
-              <span class="chain-cn">${esc(cn)}</span>
-            </div>
+            <button type="button" class="chain-head-main" data-chain-toggle="${i}" aria-expanded="false">
+              <span class="chain-chevron" aria-hidden="true">▸</span>
+              <span class="chain-head-title">
+                <span class="chain-role">${esc(role)}</span>
+                <span class="chain-cn">${esc(cn)}</span>
+              </span>
+            </button>
             <button type="button" class="chain-download" data-download="${i}" title="Download as .pem">Download .pem</button>
           </div>
-          <div class="chain-kv">
-            <div class="kv"><div class="k">Common Name</div><div class="v">${esc(cn)}</div></div>
-            <div class="kv"><div class="k">Organization</div><div class="v">${esc(org)}</div></div>
-            <div class="kv"><div class="k">Valid</div><div class="v">${esc(valid)}</div></div>
-            <div class="kv"><div class="k">Issuer</div><div class="v">${esc(issuer)}</div></div>
-          </div>
-          <button type="button" class="chain-pem-toggle" data-pem-toggle="${i}">View / copy PEM</button>
-          <div class="chain-pem hidden" id="pem-${i}">
-            <textarea readonly spellcheck="false"></textarea>
-            <div class="chain-pem-bar">
-              <button type="button" class="chain-pem-copy" data-copy="${i}">Copy</button>
+          <div class="chain-details hidden" id="chain-details-${i}">
+            <div class="chain-kv">
+              <div class="kv"><div class="k">Common Name</div><div class="v">${esc(cn)}</div></div>
+              <div class="kv"><div class="k">Organization</div><div class="v">${esc(org)}</div></div>
+              <div class="kv"><div class="k">Valid</div><div class="v">${esc(valid)}</div></div>
+              <div class="kv"><div class="k">Issuer</div><div class="v">${esc(issuer)}</div></div>
+            </div>
+            <button type="button" class="chain-pem-toggle" data-pem-toggle="${i}">View / copy PEM</button>
+            <div class="chain-pem hidden" id="pem-${i}">
+              <textarea readonly spellcheck="false"></textarea>
+              <div class="chain-pem-bar">
+                <button type="button" class="chain-pem-copy" data-copy="${i}">Copy</button>
+              </div>
             </div>
           </div>
         </div>
@@ -177,7 +194,7 @@ function renderChain(certs) {
         <span class="card-title">Certificate chain</span>
         <span class="chain-count">${certs.length} cert${certs.length === 1 ? "" : "s"}</span>
       </div>
-      <p class="chain-desc">The path from the server's certificate (leaf) up to the trusted root. Expand any certificate to view or copy its PEM, or download it.</p>
+      <p class="chain-desc">Click a certificate to expand its details, then view/copy the PEM or download it.</p>
       <ul class="chain">${items}</ul>
     </section>`;
 }
@@ -370,6 +387,11 @@ document.querySelector("[data-close]").addEventListener("click", hideChallenge);
 
 resultsEl.addEventListener("click", (e) => {
   if (!(e.target instanceof Element)) return;
+  const ct = e.target.closest("[data-chain-toggle]");
+  if (ct) {
+    toggleChain(Number(ct.dataset.chainToggle), ct);
+    return;
+  }
   const dl = e.target.closest("[data-download]");
   if (dl) {
     const cert = currentChain[Number(dl.dataset.download)];
