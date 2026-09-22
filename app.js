@@ -60,6 +60,11 @@ function normalizePort(raw) {
 // Passenger provides PORT and reverse-proxies to it. Bind all interfaces
 // (no host argument) — never bind to a machine hostname.
 const port = process.env.PORT || 3000;
-app.listen(port, () => {
-  console.log(`SSL-Checker listening on port ${port}`);
-});
+
+if (require.main === module) {
+  app.listen(port, () => {
+    console.log(`SSL-Checker listening on port ${port}`);
+  });
+}
+
+module.exports = app;
