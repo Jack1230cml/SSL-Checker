@@ -14,6 +14,7 @@ const challengeSubmitBtn = document.getElementById("challengeSubmit");
 const challengeCancelBtn = document.getElementById("challengeCancel");
 
 let pendingChallenge = null;
+let currentChain = [];
 
 const ICONS = {
   ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
@@ -121,21 +122,51 @@ function renderValidity(c) {
     </section>`;
 }
 
+function fmtDateHuman(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" });
+}
+
+function chainRole(i, len) {
+  if (len === 1) return "Certificate";
+  if (i === 0) return "Server certificate";
+  if (i === len - 1) return "Root CA";
+  return "Intermediate CA";
+}
+
 function renderChain(certs) {
-  const items = certs.map((c) => {
+  currentChain = certs;
+  const items = certs.map((c, i) => {
     const cn = c.subject.CN || Object.values(c.subject)[0] || "(no CN)";
+    const org = c.subject.O || "—";
     const issuer = c.issuer.CN || Object.values(c.issuer)[0] || "—";
-    const issuerLine = cn === issuer ? "self-signed" : `issued by ${esc(issuer)}`;
+    const valid = `${fmtDateHuman(c.not_before)} — ${fmtDateHuman(c.not_after)}`;
+    const role = chainRole(i, certs.length);
+
     return `
       <li class="chain-node">
         <div class="chain-rail"><span class="chain-dot ${esc(c.validity_status)}"></span></div>
-        <div class="chain-body">
-          <div class="chain-cn">${esc(cn)}</div>
-          <div class="chain-issuer">${issuerLine}</div>
-        </div>
-        <div class="chain-meta">
-          ${validityBadge(c.validity_status)}
-          <span class="chain-days">${esc(daysText(c.days_remaining))}</span>
+        <div class="chain-body chain-card">
+          <div class="chain-head">
+            <div class="chain-head-title">
+              <span class="chain-role">${esc(role)}</span>
+              <span class="chain-cn">${esc(cn)}</span>
+            </div>
+            <button type="button" class="chain-download" data-download="${i}" title="Download as .pem">Download .pem</button>
+          </div>
+          <div class="chain-kv">
+            <div class="kv"><div class="k">Common Name</div><div class="v">${esc(cn)}</div></div>
+            <div class="kv"><div class="k">Organization</div><div class="v">${esc(org)}</div></div>
+            <div class="kv"><div class="k">Valid</div><div class="v">${esc(valid)}</div></div>
+            <div class="kv"><div class="k">Issuer</div><div class="v">${esc(issuer)}</div></div>
+          </div>
+          <button type="button" class="chain-pem-toggle" data-pem-toggle="${i}">View / copy PEM</button>
+          <div class="chain-pem hidden" id="pem-${i}">
+            <textarea readonly spellcheck="false"></textarea>
+            <div class="chain-pem-bar">
+              <button type="button" class="chain-pem-copy" data-copy="${i}">Copy</button>
+            </div>
+          </div>
         </div>
       </li>`;
   }).join("");
@@ -144,10 +175,52 @@ function renderChain(certs) {
     <section class="card">
       <div class="card-head">
         <span class="card-title">Certificate chain</span>
-        <span class="chain-days">${certs.length} cert${certs.length === 1 ? "" : "s"}</span>
+        <span class="chain-count">${certs.length} cert${certs.length === 1 ? "" : "s"}</span>
       </div>
+      <p class="chain-desc">The path from the server's certificate (leaf) up to the trusted root. Expand any certificate to view or copy its PEM, or download it.</p>
       <ul class="chain">${items}</ul>
     </section>`;
+}
+
+function downloadPem(cert) {
+  if (!cert || !cert.pem) return;
+  const cn = (cert.subject.CN || "certificate").replace(/[^\w.-]+/g, "_");
+  const blob = new Blob([cert.pem], { type: "application/x-pem-file" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${cn}.pem`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+function togglePem(idx, btn) {
+  const box = document.getElementById(`pem-${idx}`);
+  if (!box) return;
+  if (box.classList.contains("hidden")) {
+    const ta = box.querySelector("textarea");
+    if (ta && !ta.value && currentChain[idx]) ta.value = currentChain[idx].pem || "";
+    box.classList.remove("hidden");
+    btn.textContent = "Hide PEM";
+  } else {
+    box.classList.add("hidden");
+    btn.textContent = "View / copy PEM";
+  }
+}
+
+async function copyPem(pem, btn) {
+  try {
+    await navigator.clipboard.writeText(pem);
+  } catch {
+    const box = btn.closest(".chain-pem");
+    const ta = box && box.querySelector("textarea");
+    if (ta) { ta.focus(); ta.select(); return; }
+  }
+  const old = btn.textContent;
+  btn.textContent = "Copied!";
+  setTimeout(() => { btn.textContent = old; }, 1500);
 }
 
 function render(r) {
@@ -294,3 +367,24 @@ challengeAnswerEl.addEventListener("keydown", (e) => {
   }
 });
 document.querySelector("[data-close]").addEventListener("click", hideChallenge);
+
+resultsEl.addEventListener("click", (e) => {
+  if (!(e.target instanceof Element)) return;
+  const dl = e.target.closest("[data-download]");
+  if (dl) {
+    const cert = currentChain[Number(dl.dataset.download)];
+    if (cert) downloadPem(cert);
+    return;
+  }
+  const tg = e.target.closest("[data-pem-toggle]");
+  if (tg) {
+    togglePem(Number(tg.dataset.pemToggle), tg);
+    return;
+  }
+  const cp = e.target.closest("[data-copy]");
+  if (cp) {
+    const cert = currentChain[Number(cp.dataset.copy)];
+    if (cert && cert.pem) copyPem(cert.pem, cp);
+    return;
+  }
+});
