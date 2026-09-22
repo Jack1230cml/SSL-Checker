@@ -34,6 +34,46 @@ uvicorn app.main:app --reload --port 8000
 
 Then open <http://localhost:8000> and enter a host.
 
+## Deploying to Plesk
+
+Plesk runs Python apps through **Phusion Passenger**, which is WSGI-only. The
+repo ships a `passenger_wsgi.py` entry point that bridges FastAPI (ASGI) to WSGI
+via `a2wsgi`, so Passenger can serve it directly.
+
+1. In Plesk, create the (sub)domain and set its document root to a folder where
+   you'll place the app (e.g. `httpdocs/`).
+2. Upload/copy the repo contents **into the document root** — so the doc root
+   contains `app/`, `passenger_wsgi.py` and `requirements.txt`.
+3. Over SSH (as the domain user or root), install dependencies into a
+   **virtualenv inside the doc root** — Passenger's `passenger_wsgi.py` picks it
+   up automatically:
+   ```bash
+   cd /var/www/vhosts/<domain>/httpdocs
+   python3 -m venv venv
+   venv/bin/pip install -r requirements.txt
+   ```
+   (If `python3` isn't the system interpreter, use the Plesk-managed one, e.g.
+   `/opt/plesk/python/3.11/bin/python3`.)
+4. Make sure `passenger_wsgi.py` and `app/` are readable by the web-server user
+   (`psaserv` / `psacln` group). Plesk usually handles this automatically.
+5. In Plesk → **Websites & Domains → [domain] → Hosting Settings**, the app is
+   served automatically once `passenger_wsgi.py` is in the doc root. If it shows
+   a 503/"Web application could not be started", restart the domain's
+   PHP/FastCGI/Passenger app from the Plesk UI and check the error log at
+   `/var/www/vhosts/<domain>/logs/error_log`.
+
+Verify from the server's own shell (must hit the same host the browser hits):
+
+```bash
+curl -s https://<domain>/api/health          # -> {"status":"ok"}
+curl -s -X POST https://<domain>/api/check -H "Content-Type: application/json" \
+  -d '{"host":"google.com","port":443}'      # -> JSON report
+```
+
+> **Alternative (full ASGI / WebSocket):** run `uvicorn` as a systemd service
+> and reverse-proxy to it from Plesk's nginx (Domains → Apache & nginx Settings →
+> Additional nginx directives). More moving parts, but no WSGI bridge needed.
+
 ## API
 
 ### `POST /api/check`
