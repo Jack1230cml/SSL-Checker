@@ -186,7 +186,7 @@ function render(r) {
   resultsEl.innerHTML = verdict + certCard + validityCard + chainCard;
 }
 
-async function runCheck() {
+async function runCheck(token) {
   const { host, port } = splitHostPort(hostInput.value);
   if (!host) {
     resultsEl.innerHTML = renderVerdict("err", "Missing host", null, "Enter a host to check.");
@@ -197,10 +197,12 @@ async function runCheck() {
   btn.disabled = true;
 
   try {
+    const body = { host, port: port || 443 };
+    if (token) body.token = token;
     const resp = await fetch("/api/check", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ host, port: port || 443 }),
+      body: JSON.stringify(body),
     });
     const data = await resp.json();
     if (resp.status === 429 && data.challenge) {
@@ -250,7 +252,7 @@ async function submitChallenge() {
     const data = await resp.json();
     if (resp.ok && data.ok) {
       hideChallenge();
-      runCheck(); // retry the original check
+      runCheck(data.token); // retry the original check with the single-use token
     } else {
       challengeErrorEl.textContent = data.detail || "Wrong answer.";
       challengeErrorEl.classList.remove("hidden");

@@ -119,15 +119,16 @@ returns **429** with a self-contained **math challenge**:
 ```
 
 The client solves it via `POST /api/verify` (`{ id, answer }`); on a correct
-answer that IP is exempt for `RATE_VERIFIED_MS`. All knobs are env-tunable
-(defaults shown):
+answer the server returns a **single-use token** that lets exactly one
+`/api/check` through — every request beyond the limit needs its own solve. All
+knobs are env-tunable (defaults shown):
 
 | Env var | Default | Meaning |
 |---|---|---|
 | `RATE_LIMIT` | `5` | requests allowed per window |
 | `RATE_WINDOW_MS` | `600000` | window in ms (10 min) |
-| `RATE_VERIFIED_MS` | `3600000` | exemption after solving (1 h) |
 | `RATE_CHALLENGE_TTL_MS` | `300000` | challenge lifetime (5 min) |
+| `RATE_TOKEN_TTL_MS` | `60000` | single-use token lifetime (1 min) |
 
 State is in-memory (per-process), so it resets on app restart — fine for a
 single-instance Plesk deployment.

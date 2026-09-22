@@ -17,7 +17,7 @@ const {
   recordHit,
   createChallenge,
   verifyChallenge,
-  markVerified,
+  consumeToken,
 } = require('./lib/rate-limit');
 
 const app = express();
@@ -28,13 +28,16 @@ app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.post('/api/check', async (req, res) => {
   const ip = getClientIp(req);
+  const body = req.body || {};
 
-  // Anti-abuse: an IP that checks too often must solve a challenge first.
+  // Anti-abuse: once over the limit, EVERY request needs a fresh challenge
+  // solve (a single-use token) before it is processed.
   if (isRateLimited(ip)) {
-    return res.status(429).json({ detail: 'rate_limited', challenge: createChallenge() });
+    if (!body.token || !consumeToken(body.token, ip)) {
+      return res.status(429).json({ detail: 'rate_limited', challenge: createChallenge() });
+    }
   }
 
-  const body = req.body || {};
   const host = cleanHost(body.host);
   const port = normalizePort(body.port);
 
@@ -61,9 +64,9 @@ app.post('/api/verify', (req, res) => {
     return res.status(400).json({ detail: 'challenge id and answer are required' });
   }
 
-  if (verifyChallenge(id, answer)) {
-    markVerified(ip);
-    return res.json({ ok: true });
+  const token = verifyChallenge(id, answer, ip);
+  if (token) {
+    return res.json({ ok: true, token });
   }
 
   return res.status(400).json({ detail: 'wrong answer', challenge: createChallenge() });
