@@ -6,6 +6,15 @@ const portInput = document.getElementById("port");
 const btn = document.getElementById("checkBtn");
 const resultsEl = document.getElementById("results");
 
+const challengeModal = document.getElementById("challengeModal");
+const challengeQuestionEl = document.getElementById("challengeQuestion");
+const challengeAnswerEl = document.getElementById("challengeAnswer");
+const challengeErrorEl = document.getElementById("challengeError");
+const challengeSubmitBtn = document.getElementById("challengeSubmit");
+const challengeCancelBtn = document.getElementById("challengeCancel");
+
+let pendingChallenge = null;
+
 const ICONS = {
   ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
   warn: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>',
@@ -194,6 +203,10 @@ async function runCheck() {
       body: JSON.stringify({ host, port: port || 443 }),
     });
     const data = await resp.json();
+    if (resp.status === 429 && data.challenge) {
+      showChallenge(data.challenge);
+      return;
+    }
     if (!resp.ok) throw new Error(data.detail || resp.statusText);
     render(data);
   } catch (e) {
@@ -201,6 +214,57 @@ async function runCheck() {
   } finally {
     btn.classList.remove("loading");
     btn.disabled = false;
+  }
+}
+
+function showChallenge(challenge) {
+  pendingChallenge = challenge;
+  challengeQuestionEl.textContent = challenge.question;
+  challengeAnswerEl.value = "";
+  challengeErrorEl.classList.add("hidden");
+  challengeModal.classList.remove("hidden");
+  challengeAnswerEl.focus();
+}
+
+function hideChallenge() {
+  challengeModal.classList.add("hidden");
+  pendingChallenge = null;
+}
+
+async function submitChallenge() {
+  if (!pendingChallenge) return;
+  const answer = challengeAnswerEl.value.trim();
+  if (!answer) {
+    challengeErrorEl.textContent = "Please enter an answer.";
+    challengeErrorEl.classList.remove("hidden");
+    return;
+  }
+
+  challengeSubmitBtn.disabled = true;
+  try {
+    const resp = await fetch("/api/verify", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: pendingChallenge.id, answer }),
+    });
+    const data = await resp.json();
+    if (resp.ok && data.ok) {
+      hideChallenge();
+      runCheck(); // retry the original check
+    } else {
+      challengeErrorEl.textContent = data.detail || "Wrong answer.";
+      challengeErrorEl.classList.remove("hidden");
+      if (data.challenge) {
+        pendingChallenge = data.challenge;
+        challengeQuestionEl.textContent = data.challenge.question;
+        challengeAnswerEl.value = "";
+      }
+    }
+  } catch (e) {
+    challengeErrorEl.textContent = e.message;
+    challengeErrorEl.classList.remove("hidden");
+  } finally {
+    challengeSubmitBtn.disabled = false;
   }
 }
 
@@ -218,3 +282,13 @@ document.querySelectorAll("[data-try]").forEach((a) => {
     runCheck();
   });
 });
+
+challengeSubmitBtn.addEventListener("click", submitChallenge);
+challengeCancelBtn.addEventListener("click", hideChallenge);
+challengeAnswerEl.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") {
+    e.preventDefault();
+    submitChallenge();
+  }
+});
+document.querySelector("[data-close]").addEventListener("click", hideChallenge);

@@ -11,6 +11,14 @@
 const express = require('express');
 const path = require('path');
 const { checkSSL } = require('./lib/checker');
+const {
+  getClientIp,
+  isRateLimited,
+  recordHit,
+  createChallenge,
+  verifyChallenge,
+  markVerified,
+} = require('./lib/rate-limit');
 
 const app = express();
 app.use(express.json());
@@ -19,6 +27,13 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.get('/api/health', (req, res) => res.json({ status: 'ok' }));
 
 app.post('/api/check', async (req, res) => {
+  const ip = getClientIp(req);
+
+  // Anti-abuse: an IP that checks too often must solve a challenge first.
+  if (isRateLimited(ip)) {
+    return res.status(429).json({ detail: 'rate_limited', challenge: createChallenge() });
+  }
+
   const body = req.body || {};
   const host = cleanHost(body.host);
   const port = normalizePort(body.port);
@@ -28,12 +43,30 @@ app.post('/api/check', async (req, res) => {
     return res.status(400).json({ detail: 'port must be an integer between 1 and 65535' });
   }
 
+  recordHit(ip);
+
   try {
     const result = await checkSSL(host, port);
     res.json(result);
   } catch (err) {
     res.status(500).json({ detail: err.message || String(err) });
   }
+});
+
+app.post('/api/verify', (req, res) => {
+  const ip = getClientIp(req);
+  const { id, answer } = req.body || {};
+
+  if (!id || answer == null || answer === '') {
+    return res.status(400).json({ detail: 'challenge id and answer are required' });
+  }
+
+  if (verifyChallenge(id, answer)) {
+    markVerified(ip);
+    return res.json({ ok: true });
+  }
+
+  return res.status(400).json({ detail: 'wrong answer', challenge: createChallenge() });
 });
 
 function cleanHost(raw) {

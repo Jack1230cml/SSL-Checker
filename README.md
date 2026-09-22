@@ -108,13 +108,38 @@ Response (abridged):
 { "status": "ok" }
 ```
 
+## Rate limiting & anti-abuse
+
+To stop one IP from hammering the checker, `/api/check` is rate-limited. When
+an IP makes more than `RATE_LIMIT` requests within `RATE_WINDOW_MS`, the API
+returns **429** with a self-contained **math challenge**:
+
+```json
+{ "detail": "rate_limited", "challenge": { "id": "...", "question": "7 + 4 = ?" } }
+```
+
+The client solves it via `POST /api/verify` (`{ id, answer }`); on a correct
+answer that IP is exempt for `RATE_VERIFIED_MS`. All knobs are env-tunable
+(defaults shown):
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `RATE_LIMIT` | `5` | requests allowed per window |
+| `RATE_WINDOW_MS` | `600000` | window in ms (10 min) |
+| `RATE_VERIFIED_MS` | `3600000` | exemption after solving (1 h) |
+| `RATE_CHALLENGE_TTL_MS` | `300000` | challenge lifetime (5 min) |
+
+State is in-memory (per-process), so it resets on app restart — fine for a
+single-instance Plesk deployment.
+
 ## Project layout
 
 ```
 SSL-Checker/
 ├── app.js              # Express server entry point (Passenger startup file)
 ├── lib/
-│   └── checker.js      # core TLS inspection logic (tls + crypto + node-forge)
+│   ├── checker.js      # core TLS inspection logic (tls + crypto + node-forge)
+│   └── rate-limit.js   # per-IP rate limiter + math-CAPTCHA challenge
 ├── public/             # web UI (index.html, style.css, main.js)
 └── package.json
 ```

@@ -51,6 +51,21 @@
     </footer>
   </div>
 
+  <div id="challengeModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="challengeTitle">
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <h3 id="challengeTitle" class="modal-title">Verification required</h3>
+      <p class="modal-text">Too many requests from your IP. Solve this to continue:</p>
+      <div id="challengeQuestion" class="challenge-question"></div>
+      <input id="challengeAnswer" type="text" inputmode="numeric" placeholder="answer" autocomplete="off" spellcheck="false" />
+      <div id="challengeError" class="challenge-error hidden"></div>
+      <div class="modal-actions">
+        <button id="challengeCancel" type="button" class="btn btn-ghost">Cancel</button>
+        <button id="challengeSubmit" type="button" class="btn">Verify</button>
+      </div>
+    </div>
+  </div>
+
   <script src="/main.js"></script>
 </body>
 </html>
