@@ -110,9 +110,10 @@ Response (abridged):
 
 ## Rate limiting & anti-abuse
 
-To stop one IP from hammering the checker, `/api/check` is rate-limited. When
-an IP makes more than `RATE_LIMIT` requests within `RATE_WINDOW_MS`, the API
-returns **429** with a self-contained **math challenge**:
+To stop one IP from hammering the checker, `/api/check` is capped at
+`RATE_DAILY_LIMIT` requests per **calendar day** (server-local time). Past
+that, the API returns **429** with a self-contained **math challenge** on
+every request until the next day:
 
 ```json
 { "detail": "rate_limited", "challenge": { "id": "...", "question": "7 + 4 = ?" } }
@@ -120,18 +121,19 @@ returns **429** with a self-contained **math challenge**:
 
 The client solves it via `POST /api/verify` (`{ id, answer }`); on a correct
 answer the server returns a **single-use token** that lets exactly one
-`/api/check` through — every request beyond the limit needs its own solve. All
-knobs are env-tunable (defaults shown):
+`/api/check` through — every request past the daily limit needs its own solve.
+The counter resets at midnight (server-local). All knobs are env-tunable
+(defaults shown):
 
 | Env var | Default | Meaning |
 |---|---|---|
-| `RATE_LIMIT` | `5` | requests allowed per window |
-| `RATE_WINDOW_MS` | `600000` | window in ms (10 min) |
+| `RATE_DAILY_LIMIT` | `20` | requests allowed per calendar day |
 | `RATE_CHALLENGE_TTL_MS` | `300000` | challenge lifetime (5 min) |
 | `RATE_TOKEN_TTL_MS` | `60000` | single-use token lifetime (1 min) |
 
 State is in-memory (per-process), so it resets on app restart — fine for a
-single-instance Plesk deployment.
+single-instance Plesk deployment. The day boundary uses the server's local
+timezone (override with the `TZ` env var if needed).
 
 ## Project layout
 
