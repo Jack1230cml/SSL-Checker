@@ -250,6 +250,29 @@ function renderSummary(r) {
   return `<div class="summary">${parts.join('<span class="summary-sep">·</span>')}</div>`;
 }
 
+function revocationText(rev) {
+  if (!rev) return "—";
+  switch (rev.status) {
+    case "good": return "Good (not revoked)";
+    case "revoked": return `Revoked${rev.detail ? ` (${rev.detail})` : ""}`;
+    case "unknown": return "Unknown";
+    default: return "Could not check";
+  }
+}
+
+function tlsVersionsText(versions) {
+  return versions && versions.length ? versions.join(", ") : "—";
+}
+
+function caaText(caa) {
+  if (!caa) return "—";
+  if (!caa.found) return caa.error ? `No records (${caa.error})` : "No CAA records";
+  const parts = [];
+  if (caa.issue && caa.issue.length) parts.push("issue: " + caa.issue.join(", "));
+  if (caa.issuewild && caa.issuewild.length) parts.push("issuewild: " + caa.issuewild.join(", "));
+  return parts.join(" · ") || "Yes";
+}
+
 function renderDetails(cert, r) {
   const issuerFull = cert.issuer
     ? [cert.issuer.O, cert.issuer.C].filter(Boolean).join(', ') || cert.issuer.CN || "—"
@@ -259,6 +282,9 @@ function renderDetails(cert, r) {
     ["Certificate Type", cert.cert_type || "—"],
     ["Validity Period", cert.validity_days_total != null ? `${cert.validity_days_total} days` : "—"],
     ["Issuer", issuerFull],
+    ["OCSP/CRL Revocation", revocationText(r.revocation)],
+    ["Supported TLS Versions", tlsVersionsText(r.supported_tls_versions)],
+    ["DNS CAA", caaText(r.caa)],
     ["OCSP", cert.ocsp_url || "—"],
     ["CA Issuers", cert.ca_issuers_url || "—"],
   ];

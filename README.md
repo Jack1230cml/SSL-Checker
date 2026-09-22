@@ -156,3 +156,7 @@ SSL-Checker/
   `node-forge`) because `getPeerCertificate()` does not expose it, and
   `forge.pki.certificateFromPem` throws on EC/EdDSA public keys.
 - Certificates expiring within **14 days** are flagged `expiring_soon`.
+- On a successful handshake three extra network probes run in parallel and are
+  appended to the report: **OCSP revocation status** (via the `ocsp` package),
+  **supported TLS versions** (1.0–1.3), and the **DNS CAA** record. Each one
+  degrades gracefully if the responder/resolver is unreachable.
