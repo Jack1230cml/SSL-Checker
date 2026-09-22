@@ -3,38 +3,51 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SSL Checker — host &amp; port TLS inspection</title>
+  <title>SSL Checker — TLS · certificate · chain</title>
   <link rel="stylesheet" href="/style.css" />
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔒</text></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M8 11V7a4 4 0 0 1 8 0v4' fill='none' stroke='%234ade80' stroke-width='2' stroke-linecap='round'/><rect x='4' y='11' width='16' height='10' rx='2.5' fill='%234ade80'/></svg>" />
 </head>
 <body>
-  <div class="wrap">
-    <header class="hero">
-      <h1>🔒 SSL Checker</h1>
-      <p class="sub">Inspect the TLS certificate, cipher &amp; chain of any <code>host:port</code>.</p>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <svg class="brand-mark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="4" y="11" width="16" height="10" rx="2.5"/>
+          <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+        </svg>
+        <div class="brand-text">
+          <span class="brand-name">SSL Checker</span>
+          <span class="brand-sub">TLS · certificate · chain</span>
+        </div>
+      </div>
+      <div class="topbar-note">inspect any host:port</div>
     </header>
 
-    <form id="checkForm" class="search-card" autocomplete="off">
-      <div class="field host">
-        <label for="host">Host</label>
-        <input id="host" name="host" type="text" placeholder="example.com" required
-               spellcheck="false" autocapitalize="off" />
-      </div>
-      <div class="field port">
-        <label for="port">Port</label>
-        <input id="port" name="port" type="number" min="1" max="65535" value="443" />
-      </div>
-      <button id="checkBtn" type="submit" class="btn">Check</button>
-    </form>
+    <main class="main">
+      <form id="checkForm" class="command" autocomplete="off" novalidate>
+        <label class="field field-host">
+          <span class="field-label">Host</span>
+          <input id="host" name="host" type="text" placeholder="example.com" required spellcheck="false" autocapitalize="off" autocomplete="off" />
+        </label>
+        <label class="field field-port">
+          <span class="field-label">Port</span>
+          <input id="port" name="port" type="number" min="1" max="65535" value="443" inputmode="numeric" />
+        </label>
+        <button id="checkBtn" type="submit" class="btn">
+          <span class="btn-label">Check</span>
+          <span class="btn-spinner" aria-hidden="true"></span>
+        </button>
+      </form>
 
-    <div id="status" class="status hidden"></div>
-    <div id="results" class="results"></div>
+      <div id="results" class="results"></div>
+    </main>
 
     <footer class="foot">
-      <span>Quick try: <a href="#" data-try="google.com:443">google.com</a> ·
-        <a href="#" data-try="expired.badssl.com:443">expired.badssl.com</a> ·
-        <a href="#" data-try="self-signed.badssl.com:443">self-signed.badssl.com</a> ·
-        <a href="#" data-try="github.com:443">github.com</a></span>
+      <span class="foot-label">Quick try</span>
+      <a href="#" data-try="google.com:443">google.com</a>
+      <a href="#" data-try="github.com:443">github.com</a>
+      <a href="#" data-try="expired.badssl.com:443">expired</a>
+      <a href="#" data-try="self-signed.badssl.com:443">self-signed</a>
     </footer>
   </div>
 
